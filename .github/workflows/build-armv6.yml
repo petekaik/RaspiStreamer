@@ -9,7 +9,7 @@ on:
 jobs:
   build-armv6:
     name: Build armv6 binary and .deb (Debian Bullseye / armhf)
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout this repository
         uses: actions/checkout@v4
