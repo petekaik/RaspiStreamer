@@ -24,18 +24,23 @@ jobs:
           source $HOME/.cargo/env
           rustup target add arm-unknown-linux-gnueabihf
 
-          # Enable armhf architecture and install cross-target dev packages
+          # Add armhf architecture and configure apt to use ports.ubuntu.com for armhf packages
+          CODENAME=$(lsb_release -cs)
           sudo dpkg --add-architecture armhf
+          sudo sh -c "echo 'deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports ${CODENAME} main universe' > /etc/apt/sources.list.d/armhf-ports.list"
+          sudo sh -c "echo 'deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports ${CODENAME}-updates main universe' >> /etc/apt/sources.list.d/armhf-ports.list"
+          sudo sh -c "echo 'deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports ${CODENAME}-security main universe' >> /etc/apt/sources.list.d/armhf-ports.list"
+
           sudo apt-get update
+
+          # Install host toolchain and target dev packages from ports
           sudo apt-get install -y \
             build-essential \
             pkg-config \
             gcc-arm-linux-gnueabihf \
             g++-arm-linux-gnueabihf \
             ca-certificates \
-            # host-side packages (optional)
             libssl-dev \
-            # target (armhf) dev packages used by openssl and other native deps
             libssl-dev:armhf \
             libasound2-dev:armhf \
             libpulse-dev:armhf \
