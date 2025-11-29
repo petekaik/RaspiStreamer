@@ -4,25 +4,26 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - dev
+      - main
 
 jobs:
   build-armv6:
     name: Build armv6 binary
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      - name: Clone librespot repository
+        run: |
+          git clone --depth 1 https://github.com/librespot-org/librespot.git /tmp/librespot
+
       - name: Build image for linux/arm/v6
         run: |
-          docker buildx build --platform linux/arm/v6 -t librespot:armv6 --load -f .github/workflows/Dockerfile.armv6 .
+          docker buildx build --platform linux/arm/v6 -t librespot:armv6 --load -f .github/workflows/Dockerfile.armv6 /tmp/librespot
 
       - name: Create container from image
         run: |
@@ -39,17 +40,17 @@ jobs:
           mkdir -p package/DEBIAN package/usr/local/bin
           cp ./librespot package/usr/local/bin/librespot
           chmod 755 package/usr/local/bin/librespot
-          VERSION=$(git rev-parse --short HEAD)
-          cat > package/DEBIAN/control <<EOF
+          VERSION=$(date +%Y%m%d)
+          cat > package/DEBIAN/control <<CTRL
 Package: librespot
 Version: ${VERSION}
 Section: sound
 Priority: optional
 Architecture: armhf
-Maintainer: libreuser <noreply@example.com>
+Maintainer: RaspiStreamer <noreply@example.com>
 Depends: libc6 (>= 2.28), libasound2, libpulse0, libavahi-compat-libdnssd0
 Description: librespot headless Spotify client (built for Raspberry Pi Zero W / armv6)
-EOF
+CTRL
           dpkg-deb --build package librespot_${VERSION}_armhf.deb
 
       - name: Upload artifact (.deb)
