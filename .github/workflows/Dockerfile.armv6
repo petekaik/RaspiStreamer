@@ -22,7 +22,6 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 ARG TARGET_TRIPLE=arm-unknown-linux-gnueabihf
-ARG TARGET_CPU=arm1176jzf-s
 
 RUN rustup target add ${TARGET_TRIPLE}
 
@@ -31,9 +30,6 @@ COPY . /workspace
 
 # Create proper cargo config
 RUN mkdir -p .cargo && cat > .cargo/config.toml <<'CARGO_EOF'
-[build]
-rustflags = ["-C", "linker=arm-linux-gnueabihf-gcc", "-C", "target-cpu=arm1176jzf-s"]
-
 [target.arm-unknown-linux-gnueabihf]
 linker = "arm-linux-gnueabihf-gcc"
 ar = "arm-linux-gnueabihf-ar"
@@ -42,6 +38,10 @@ CARGO_EOF
 ENV PKG_CONFIG_PATH=/usr/arm-linux-gnueabihf/lib/pkgconfig
 ENV CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc
 ENV AR_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-ar
-ENV RUSTFLAGS="-C linker=arm-linux-gnueabihf-gcc -C target-cpu=arm1176jzf-s"
+ENV RUSTFLAGS="-C linker=arm-linux-gnueabihf-gcc"
 
-RUN cargo build --release --target ${TARGET_TRIPLE} --no-default-features --features "native-tls,pulseaudio-backend,with-avahi" 2>&1 | tail -100
+# Build with verbose output to see any errors
+RUN cargo build --release --target ${TARGET_TRIPLE} --no-default-features --features "native-tls,pulseaudio-backend,with-avahi" -v
+
+# Verify binary exists
+RUN ls -lh /workspace/target/${TARGET_TRIPLE}/release/librespot || (echo "Build failed - binary not found" && exit 1)

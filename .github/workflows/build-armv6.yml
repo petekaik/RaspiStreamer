@@ -20,7 +20,8 @@ jobs:
 
       - name: Build Docker image for cross-compilation
         run: |
-          docker build -t librespot:armv6-builder -f ${{ github.workspace }}/.github/workflows/Dockerfile.armv6 /tmp/librespot
+          docker build -t librespot:armv6-builder -f ${{ github.workspace }}/.github/workflows/Dockerfile.armv6 /tmp/librespot 2>&1 | tee build.log
+          tail -200 build.log
 
       - name: Extract binary from image
         run: |
