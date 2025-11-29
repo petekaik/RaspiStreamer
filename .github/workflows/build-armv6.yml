@@ -1,7 +1,7 @@
 name: Build librespot (armv6)
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
   push:
     branches:
       - main
@@ -41,16 +41,16 @@ jobs:
           cp ./librespot package/usr/local/bin/librespot
           chmod 755 package/usr/local/bin/librespot
           VERSION=$(date +%Y%m%d)
-          cat > package/DEBIAN/control <<CTRL
-Package: librespot
-Version: ${VERSION}
-Section: sound
-Priority: optional
-Architecture: armhf
-Maintainer: RaspiStreamer <noreply@example.com>
-Depends: libc6 (>= 2.28), libasound2, libpulse0, libavahi-compat-libdnssd0
-Description: librespot headless Spotify client (built for Raspberry Pi Zero W / armv6)
-CTRL
+          printf '%s\n' \
+            "Package: librespot" \
+            "Version: ${VERSION}" \
+            "Section: sound" \
+            "Priority: optional" \
+            "Architecture: armhf" \
+            "Maintainer: RaspiStreamer <noreply@example.com>" \
+            "Depends: libc6 (>= 2.28), libasound2, libpulse0, libavahi-compat-libdnssd0" \
+            "Description: librespot headless Spotify client (built for Raspberry Pi Zero W / armv6)" \
+            > package/DEBIAN/control
           dpkg-deb --build package librespot_${VERSION}_armhf.deb
 
       - name: Upload artifact (.deb)
