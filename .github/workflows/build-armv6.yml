@@ -23,16 +23,23 @@ jobs:
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
           rustup target add arm-unknown-linux-gnueabihf
+
+          # Enable armhf architecture and install cross-target dev packages
+          sudo dpkg --add-architecture armhf
           sudo apt-get update
           sudo apt-get install -y \
             build-essential \
-            libasound2-dev \
-            libpulse-dev \
-            libavahi-compat-libdnssd-dev \
             pkg-config \
             gcc-arm-linux-gnueabihf \
             g++-arm-linux-gnueabihf \
-            libssl-dev
+            ca-certificates \
+            # host-side packages (optional)
+            libssl-dev \
+            # target (armhf) dev packages used by openssl and other native deps
+            libssl-dev:armhf \
+            libasound2-dev:armhf \
+            libpulse-dev:armhf \
+            libavahi-compat-libdnssd-dev:armhf
 
       - name: Build librespot for armv6
         run: |
@@ -40,7 +47,14 @@ jobs:
           source $HOME/.cargo/env
           export CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc
           export AR_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-ar
+          # Ensure pkg-config finds ARMhf .pc files and allow cross pkg-config
+          export PKG_CONFIG_ALLOW_CROSS=1
+          export PKG_CONFIG_LIBDIR=/usr/arm-linux-gnueabihf/lib/pkgconfig
           export PKG_CONFIG_PATH=/usr/arm-linux-gnueabihf/lib/pkgconfig
+          # Help openssl-sys find the cross-compiled OpenSSL
+          export OPENSSL_DIR=/usr/arm-linux-gnueabihf
+          export OPENSSL_LIB_DIR=/usr/arm-linux-gnueabihf/lib
+          export OPENSSL_INCLUDE_DIR=/usr/arm-linux-gnueabihf/include
           mkdir -p .cargo
           echo "[target.arm-unknown-linux-gnueabihf]" > .cargo/config.toml
           echo "linker = \"arm-linux-gnueabihf-gcc\"" >> .cargo/config.toml
