@@ -1,0 +1,35 @@
+FROM arm32v6/debian:bullseye
+
+RUN apt-get update && apt-get install -y \
+  build-essential \
+  libasound2-dev \
+  libpulse-dev \
+  libavahi-compat-libdnssd-dev \
+  pkg-config \
+  curl \
+  git \
+  cmake \
+  file \
+  ca-certificates \
+  gcc-arm-linux-gnueabihf \
+  libssl-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+ARG TARGET_TRIPLE=arm-unknown-linux-gnueabihf
+ARG TARGET_CPU=arm1176jzf-s
+
+RUN rustup target add ${TARGET_TRIPLE} || true
+
+WORKDIR /workspace
+COPY . /workspace
+
+RUN mkdir -p .cargo
+RUN printf '[target.%s]\nlinker = "arm-linux-gnueabihf-gcc"\n' "${TARGET_TRIPLE}" >> .cargo/config.toml
+RUN printf '[target.%s]\nrustflags = ["-C", "target-cpu=%s"]\n' "${TARGET_TRIPLE}" "${TARGET_CPU}" >> .cargo/config.toml
+
+ENV PKG_CONFIG_PATH=/usr/arm-linux-gnueabihf/lib/pkgconfig
+
+RUN cargo build --release --target ${TARGET_TRIPLE} --no-default-features --features "native-tls,pulseaudio-backend,with-avahi"
