@@ -28,10 +28,10 @@ jobs:
           # Add Debian Bullseye armhf repositories (we need armhf -dev packages)
           sudo dpkg --add-architecture armhf
           sudo tee /etc/apt/sources.list.d/debian-armhf-bullseye.list > /dev/null <<'EOF'
-deb [arch=armhf] http://deb.debian.org/debian bullseye main contrib non-free
-deb [arch=armhf] http://deb.debian.org/debian bullseye-updates main contrib non-free
-deb [arch=armhf] http://security.debian.org/debian-security bullseye-security main contrib non-free
-EOF
+          deb [arch=armhf] http://deb.debian.org/debian bullseye main contrib non-free
+          deb [arch=armhf] http://deb.debian.org/debian bullseye-updates main contrib non-free
+          deb [arch=armhf] http://security.debian.org/debian-security bullseye-security main contrib non-free
+          EOF
           sudo apt-get update
 
           # Install host toolchain and target dev packages
@@ -70,10 +70,10 @@ EOF
           # Configure cargo target linker/ar
           mkdir -p .cargo
           cat > .cargo/config.toml <<'EOF'
-[target.arm-unknown-linux-gnueabihf]
-linker = "arm-linux-gnueabihf-gcc"
-ar = "arm-linux-gnueabihf-ar"
-EOF
+          [target.arm-unknown-linux-gnueabihf]
+          linker = "arm-linux-gnueabihf-gcc"
+          ar = "arm-linux-gnueabihf-ar"
+          EOF
 
           # Build: disable default features, enable rustls (native roots), pulseaudio and avahi
           cargo build --release --target arm-unknown-linux-gnueabihf --no-default-features --features "rustls-tls-native-roots,pulseaudio-backend,with-avahi"
@@ -105,16 +105,16 @@ EOF
 
           VERSION=$(date +%Y%m%d%H%M)
           cat > package/DEBIAN/control <<EOF
-Package: librespot
-Version: ${VERSION}
-Section: sound
-Priority: optional
-Architecture: armhf
-Maintainer: ${GITHUB_ACTOR:-RaspiStreamer} <noreply@example.com>
-Depends: libc6 (>= 2.28), libasound2, libpulse0, libavahi-compat-libdnssd0, ca-certificates
-Description: librespot headless Spotify client (built for Raspberry Pi Zero W / armv6)
- Built with rustls TLS, pulseaudio backend and Avahi support.
-EOF
+          Package: librespot
+          Version: ${VERSION}
+          Section: sound
+          Priority: optional
+          Architecture: armhf
+          Maintainer: ${GITHUB_ACTOR:-RaspiStreamer} <noreply@example.com>
+          Depends: libc6 (>= 2.28), libasound2, libpulse0, libavahi-compat-libdnssd0, ca-certificates
+          Description: librespot headless Spotify client (built for Raspberry Pi Zero W / armv6)
+           Built with rustls TLS, pulseaudio backend and Avahi support.
+          EOF
 
           chmod 755 package/DEBIAN
           dpkg-deb --build package librespot_${VERSION}_armhf.deb
