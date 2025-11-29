@@ -9,7 +9,7 @@ on:
 jobs:
   build-armv6:
     name: Build armv6 binary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout this repository
         uses: actions/checkout@v4
