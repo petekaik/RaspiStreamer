@@ -17,13 +17,16 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      - name: Checkout this repository
+        uses: actions/checkout@v4
+
       - name: Clone librespot repository
         run: |
           git clone --depth 1 https://github.com/librespot-org/librespot.git /tmp/librespot
 
       - name: Build image for linux/arm/v6
         run: |
-          docker buildx build --platform linux/arm/v6 -t librespot:armv6 --load -f .github/workflows/Dockerfile.armv6 /tmp/librespot
+          docker buildx build --platform linux/arm/v6 -t librespot:armv6 --load -f ${{ github.workspace }}/.github/workflows/Dockerfile.armv6 /tmp/librespot
 
       - name: Create container from image
         run: |
