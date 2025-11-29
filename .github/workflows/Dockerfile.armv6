@@ -1,5 +1,6 @@
-FROM debian:bullseye
+FROM ubuntu:22.04
 
+# Install dependencies for cross-compilation
 RUN apt-get update && apt-get install -y \
   build-essential \
   libasound2-dev \
@@ -12,24 +13,27 @@ RUN apt-get update && apt-get install -y \
   file \
   ca-certificates \
   gcc-arm-linux-gnueabihf \
+  g++-arm-linux-gnueabihf \
   libssl-dev \
   && rm -rf /var/lib/apt/lists/*
 
+# Install Rust
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 ARG TARGET_TRIPLE=arm-unknown-linux-gnueabihf
 ARG TARGET_CPU=arm1176jzf-s
 
-RUN rustup target add ${TARGET_TRIPLE} || true
+RUN rustup target add ${TARGET_TRIPLE}
 
 WORKDIR /workspace
 COPY . /workspace
 
 RUN mkdir -p .cargo
-RUN printf '[target.%s]\nlinker = "arm-linux-gnueabihf-gcc"\n' "${TARGET_TRIPLE}" >> .cargo/config.toml
-RUN printf '[target.%s]\nrustflags = ["-C", "target-cpu=%s"]\n' "${TARGET_TRIPLE}" "${TARGET_CPU}" >> .cargo/config.toml
+RUN printf '[build]\nrustflags = ["-C", "linker=arm-linux-gnueabihf-gcc", "-C", "target-cpu=%s"]\n\n[target.%s]\nlinker = "arm-linux-gnueabihf-gcc"\n' "${TARGET_CPU}" "${TARGET_TRIPLE}" > .cargo/config.toml
 
 ENV PKG_CONFIG_PATH=/usr/arm-linux-gnueabihf/lib/pkgconfig
+ENV CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc
+ENV AR_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-ar
 
 RUN cargo build --release --target ${TARGET_TRIPLE} --no-default-features --features "native-tls,pulseaudio-backend,with-avahi"
