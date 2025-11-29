@@ -18,20 +18,41 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/librespot-org/librespot.git /tmp/librespot
 
-      - name: Build Docker image for cross-compilation
+      - name: Install Rust and cross-compile tools
         run: |
-          docker build -t librespot:armv6-builder -f ${{ github.workspace }}/.github/workflows/Dockerfile.armv6 /tmp/librespot 2>&1 | tee build.log
-          tail -200 build.log
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
+          rustup target add arm-unknown-linux-gnueabihf
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            libasound2-dev \
+            libpulse-dev \
+            libavahi-compat-libdnssd-dev \
+            pkg-config \
+            gcc-arm-linux-gnueabihf \
+            g++-arm-linux-gnueabihf \
+            libssl-dev
 
-      - name: Extract binary from image
+      - name: Build librespot for armv6
         run: |
-          docker run --rm -v ${{ github.workspace }}:/output librespot:armv6-builder bash -c 'cp /workspace/target/arm-unknown-linux-gnueabihf/release/librespot /output/librespot'
+          cd /tmp/librespot
+          source $HOME/.cargo/env
+          export CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc
+          export AR_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-ar
+          export PKG_CONFIG_PATH=/usr/arm-linux-gnueabihf/lib/pkgconfig
+          mkdir -p .cargo
+          echo "[target.arm-unknown-linux-gnueabihf]" > .cargo/config.toml
+          echo "linker = \"arm-linux-gnueabihf-gcc\"" >> .cargo/config.toml
+          echo "ar = \"arm-linux-gnueabihf-ar\"" >> .cargo/config.toml
+          cargo build --release --target arm-unknown-linux-gnueabihf --no-default-features --features "native-tls,pulseaudio-backend,with-avahi"
+          cp target/arm-unknown-linux-gnueabihf/release/librespot ${{ github.workspace }}/librespot
 
       - name: Package .deb for Debian Bullseye (armhf)
         run: |
           set -e
           mkdir -p package/DEBIAN package/usr/local/bin
-          cp ./librespot package/usr/local/bin/librespot
+          cp ${{ github.workspace }}/librespot package/usr/local/bin/librespot
           chmod 755 package/usr/local/bin/librespot
           VERSION=$(date +%Y%m%d)
           printf '%s\n' \
