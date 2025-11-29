@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-armv6:
-    name: Build armv6 binary
+    name: Build armv6 binary and .deb (Debian Bullseye / armhf)
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout this repository
@@ -20,70 +20,103 @@ jobs:
 
       - name: Install Rust and cross-compile tools
         run: |
+          set -e
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
           source $HOME/.cargo/env
           rustup target add arm-unknown-linux-gnueabihf
 
-          # Add armhf architecture and configure apt to use ports.ubuntu.com for armhf packages
-          CODENAME=$(lsb_release -cs)
+          # Add Debian Bullseye armhf repositories (we need armhf -dev packages)
           sudo dpkg --add-architecture armhf
-          sudo sh -c "echo 'deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports ${CODENAME} main universe' > /etc/apt/sources.list.d/armhf-ports.list"
-          sudo sh -c "echo 'deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports ${CODENAME}-updates main universe' >> /etc/apt/sources.list.d/armhf-ports.list"
-          sudo sh -c "echo 'deb [arch=armhf] http://ports.ubuntu.com/ubuntu-ports ${CODENAME}-security main universe' >> /etc/apt/sources.list.d/armhf-ports.list"
-
+          sudo tee /etc/apt/sources.list.d/debian-armhf-bullseye.list > /dev/null <<'EOF'
+deb [arch=armhf] http://deb.debian.org/debian bullseye main contrib non-free
+deb [arch=armhf] http://deb.debian.org/debian bullseye-updates main contrib non-free
+deb [arch=armhf] http://security.debian.org/debian-security bullseye-security main contrib non-free
+EOF
           sudo apt-get update
 
-          # Install host toolchain and target dev packages from ports
-          sudo apt-get install -y \
+          # Install host toolchain and target dev packages
+          sudo apt-get install -y --no-install-recommends \
             build-essential \
             pkg-config \
+            curl \
+            ca-certificates \
             gcc-arm-linux-gnueabihf \
             g++-arm-linux-gnueabihf \
-            ca-certificates \
-            libssl-dev \
-            libssl-dev:armhf \
             libasound2-dev:armhf \
             libpulse-dev:armhf \
-            libavahi-compat-libdnssd-dev:armhf
+            libavahi-compat-libdnssd-dev:armhf \
+            zlib1g-dev:armhf \
+            pkg-config \
+            file \
+            binutils-arm-linux-gnueabihf
 
-      - name: Build librespot for armv6
+      - name: Build librespot for armv6 (rustls + pulseaudio + avahi)
         run: |
+          set -e
           cd /tmp/librespot
           source $HOME/.cargo/env
+
+          # Use cross toolchain
           export CC_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-gcc
+          export CXX_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-g++
           export AR_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-ar
-          # Ensure pkg-config finds ARMhf .pc files and allow cross pkg-config
+          export STRIP_arm_unknown_linux_gnueabihf=arm-linux-gnueabihf-strip
+
+          # Allow pkg-config to find armhf .pc files and allow cross pkg-config
           export PKG_CONFIG_ALLOW_CROSS=1
-          export PKG_CONFIG_LIBDIR=/usr/arm-linux-gnueabihf/lib/pkgconfig
-          export PKG_CONFIG_PATH=/usr/arm-linux-gnueabihf/lib/pkgconfig
-          # Help openssl-sys find the cross-compiled OpenSSL
-          export OPENSSL_DIR=/usr/arm-linux-gnueabihf
-          export OPENSSL_LIB_DIR=/usr/arm-linux-gnueabihf/lib
-          export OPENSSL_INCLUDE_DIR=/usr/arm-linux-gnueabihf/include
+          export PKG_CONFIG_LIBDIR=/usr/arm-linux-gnueabihf/lib/pkgconfig:/usr/lib/arm-linux-gnueabihf/pkgconfig
+          export PKG_CONFIG_PATH=$PKG_CONFIG_LIBDIR
+
+          # Configure cargo target linker/ar
           mkdir -p .cargo
-          echo "[target.arm-unknown-linux-gnueabihf]" > .cargo/config.toml
-          echo "linker = \"arm-linux-gnueabihf-gcc\"" >> .cargo/config.toml
-          echo "ar = \"arm-linux-gnueabihf-ar\"" >> .cargo/config.toml
-          cargo build --release --target arm-unknown-linux-gnueabihf --no-default-features --features "native-tls,pulseaudio-backend,with-avahi"
+          cat > .cargo/config.toml <<'EOF'
+[target.arm-unknown-linux-gnueabihf]
+linker = "arm-linux-gnueabihf-gcc"
+ar = "arm-linux-gnueabihf-ar"
+EOF
+
+          # Build: disable default features, enable rustls (native roots), pulseaudio and avahi
+          cargo build --release --target arm-unknown-linux-gnueabihf --no-default-features --features "rustls-tls-native-roots,pulseaudio-backend,with-avahi"
+
+          # Strip binary to reduce size
+          arm-linux-gnueabihf-strip target/arm-unknown-linux-gnueabihf/release/librespot || true
+
+          # Copy binary to workspace for packaging
           cp target/arm-unknown-linux-gnueabihf/release/librespot ${{ github.workspace }}/librespot
 
       - name: Package .deb for Debian Bullseye (armhf)
         run: |
           set -e
-          mkdir -p package/DEBIAN package/usr/local/bin
-          cp ${{ github.workspace }}/librespot package/usr/local/bin/librespot
-          chmod 755 package/usr/local/bin/librespot
-          VERSION=$(date +%Y%m%d)
-          printf '%s\n' \
-            "Package: librespot" \
-            "Version: ${VERSION}" \
-            "Section: sound" \
-            "Priority: optional" \
-            "Architecture: armhf" \
-            "Maintainer: RaspiStreamer <noreply@example.com>" \
-            "Depends: libc6 (>= 2.28), libasound2, libpulse0, libavahi-compat-libdnssd0" \
-            "Description: librespot headless Spotify client (built for Raspberry Pi Zero W / armv6)" \
-            > package/DEBIAN/control
+          mkdir -p package/DEBIAN package/usr/bin package/usr/share/doc/librespot
+          cp ${{ github.workspace }}/librespot package/usr/bin/librespot
+          chmod 755 package/usr/bin/librespot
+
+          # Optionally include README and systemd service from the cloned librepsot repo if available
+          if [ -f /tmp/librespot/README.md ]; then
+            install -m 644 /tmp/librespot/README.md package/usr/share/doc/librespot/README.md
+          fi
+          if [ -f /tmp/librespot/contrib/librespot.service ]; then
+            mkdir -p package/lib/systemd/system
+            install -m 644 /tmp/librespot/contrib/librespot.service package/lib/systemd/system/librespot.service
+          fi
+          if [ -f /tmp/librespot/contrib/librespot.user.service ]; then
+            install -m 644 /tmp/librespot/contrib/librespot.user.service package/lib/systemd/user/librespot.user.service || true
+          fi
+
+          VERSION=$(date +%Y%m%d%H%M)
+          cat > package/DEBIAN/control <<EOF
+Package: librespot
+Version: ${VERSION}
+Section: sound
+Priority: optional
+Architecture: armhf
+Maintainer: ${GITHUB_ACTOR:-RaspiStreamer} <noreply@example.com>
+Depends: libc6 (>= 2.28), libasound2, libpulse0, libavahi-compat-libdnssd0, ca-certificates
+Description: librespot headless Spotify client (built for Raspberry Pi Zero W / armv6)
+ Built with rustls TLS, pulseaudio backend and Avahi support.
+EOF
+
+          chmod 755 package/DEBIAN
           dpkg-deb --build package librespot_${VERSION}_armhf.deb
 
       - name: Upload artifact (.deb)
